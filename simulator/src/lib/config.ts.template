@@ -1,0 +1,4 @@
+// 修改这个配置文件，复制到当前目录的config.ts
+
+export const MQTT_SERVER_WS = 'ws://example.com:9001/'
+export const MQTT_PREFIX = '/inshare'

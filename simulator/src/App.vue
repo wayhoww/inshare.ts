@@ -11,10 +11,12 @@ import Vue from "vue";
 import Component from "vue-class-component";
 import DevicesView from "./components/DevicesView.vue";
 import { DeviceData, Device } from './lib/device'
+import ElementUI from "element-ui";
+Vue.use(ElementUI);
 
-import { connect } from "mqtt";
+import "element-ui/lib/theme-chalk/index.css";
 import { EventType } from './lib/events';
-import * as Config from '../../config/config';
+import * as Config from './lib/config';
 
 const url = Config.MQTT_SERVER_WS;
 const prefix = Config.MQTT_PREFIX;
