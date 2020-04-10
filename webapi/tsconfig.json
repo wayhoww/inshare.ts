@@ -1,0 +1,8 @@
+{
+    "compilerOptions": {
+        "strictNullChecks": true, 
+        "noImplicitAny": true,
+        "target": "ES6"
+    },
+    "files": ["./src/**/*.ts"]
+}

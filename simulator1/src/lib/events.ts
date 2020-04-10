@@ -1,0 +1,6 @@
+export declare type EventType = "doors-changed" 
+                              | "instruments-changed" 
+                              | "location-changed" 
+                              | "deviceid-changed"
+                              | "device-added"
+                              | "device-deleted"
