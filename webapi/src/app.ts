@@ -2,7 +2,7 @@ import * as express from 'express'
 import * as bodyParser from 'body-parser'
 import * as mongoose from 'mongoose'
 import { configure, getLogger } from 'log4js';
-import * as Config from '../../config/config'
+import * as Config from './helper/config'
  
 configure({
     appenders: { 

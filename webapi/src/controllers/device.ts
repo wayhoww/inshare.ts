@@ -1,6 +1,6 @@
 import * as express from 'express'
 import { getLogger } from 'log4js'
-import * as Config from '../../../config/config'
+import * as Config from '../helper/config'
 import { deviceManager } from '../helper/instances'
 
 const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL)

@@ -1,7 +1,7 @@
 import { model, Schema, Document } from 'mongoose'
 import {createHmac} from 'crypto'
 import { getLogger, Logger } from 'log4js';
-import * as Config from '../../../config/config'
+import * as Config from '../helper/config'
 
 const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL)
 

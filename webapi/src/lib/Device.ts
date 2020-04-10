@@ -1,7 +1,7 @@
 import { connect, MqttClient, IClientOptions } from 'mqtt'
 import { assert } from 'console'
 import { getLogger } from 'log4js'
-import * as Config from '../../../config/config'
+import * as Config from '../helper/config'
 
 const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL)
 

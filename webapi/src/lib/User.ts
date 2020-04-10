@@ -4,7 +4,7 @@ import { Profile, ProfileModel } from './Profile'
 import { Device } from './Device'
 import { v1 as UUID} from 'uuid'
 import { getLogger } from 'log4js'
-import * as Config from '../../../config/config'
+import * as Config from '../helper/config'
 
 const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL)
 
