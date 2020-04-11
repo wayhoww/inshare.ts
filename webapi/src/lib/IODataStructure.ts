@@ -21,7 +21,7 @@ export namespace IODataStructure {
         }
 
         /** 验证码 */
-        export declare type Captcha = string
+        export type Captcha = string
 
         /** 设备箱门 */
         export interface Door {
@@ -49,17 +49,66 @@ export namespace IODataStructure {
             region?: string,        // 用户地区
             phone?: string,         // 用户电话号码
             email?: string          // 用户电子邮件地址（不用于身份验证！）
-        }            
+        }        
+        
     }
 
     /** 定义回复请求的时候JSON数据的格式 */
     export namespace Response{
-        declare type Status = "ACCEPT"
+        export type UnacceptedStatus = WeixinSignupError
+        export type FullStatus<T> = T | "ACCEPT"
+        export type InvalidQueryError = "ERR_INVALID_QUERY"
 
         /** /device/list返回的数据 */
         export interface DeviceList {
-            status: Status,
+            status: "ACCEPT",
             devices: IODataStructure.Device.Device[]
+        }
+
+        // 微信注册的返回
+        export type WeixinCode2SessionError = 
+             "ERR_WEIXIN_SERVER" | "ERR_INVALID_CODE" | "ERR_FREQUENCY_EXCEED";
+        export type WeixinSignupError = WeixinCode2SessionError | InvalidQueryError
+        //  /user/login /user/signup
+        export interface WeixinSignupReturnAccept {
+            status: "ACCEPT",
+            uuid: string,
+            client_session_id: string
+        }
+        export type WeixinSignup = WeixinSignupReturnAccept 
+            | { status: WeixinSignupError }
+
+
+        // 用户名注册的返回
+        export type UsernameSignupError = "ERR_USERNAME_ALREADY_EXIST" | InvalidQueryError
+        export interface UsernameSignupReturnAccept {
+            status: "ACCEPT",
+            uuid: string,
+        }
+        export type UsernameSignup = UsernameSignupReturnAccept 
+            | { status: UsernameSignupError }
+
+
+        // 登录错误
+        export type WeixinLoginStatus = "ACCEPT" | WeixinLoginError
+        export type WeixinLoginError = | "ERR_INVALID_CLIENT_SESSION_ID" | "ERR_INVALID_UUID"
+        export type LoginError = "ERR_WRONG_PASSWORD" | WeixinLoginError
+        // 任何一个需要登录的操作都可能因为登陆失败而返回这个
+        export type LoginFailed = {
+            status: "ERR_LOGIN_FAILED",
+            potentialErrors: LoginError[]
+        }
+
+        export type UUID = {
+            status: "ACCEPT",
+            uuid: string
+        }
+        export type Profile = {
+            status: "ACCEPT",
+            profile: IODataStructure.User.Profile
+        }        
+        export type PostProfile = {
+            status: "ACCEPT" | InvalidQueryError
         }
 
     }
@@ -69,6 +118,17 @@ export namespace IODataStructure {
 
         export interface WeixinSignupQuery {
             jscode: string
+        }
+
+        export type WeixinLoginQuery = {
+            uuid: string,
+            client_session_id: string
+        }
+
+        export interface UsernameSignupQuery {
+            [x: string]: string;
+            username: string,
+            password: string
         }
     }
 }

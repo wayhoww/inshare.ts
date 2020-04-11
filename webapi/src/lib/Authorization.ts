@@ -4,6 +4,8 @@ import { getLogger, Logger } from 'log4js';
 import * as Config from '../helper/config'
 import request from 'sync-request'
 import { Updator, User } from './User';
+import { IODataStructure } from './IODataStructure';
+import { is } from 'typescript-is';
 
 const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL)
 
@@ -96,8 +98,13 @@ function sessionTokenUrl(js_code: string){
         + `js_code=${js_code}&grant_type=authorization_code`
 }
 
-export type WeixinCode2SessionStatus = "ACCEPT" | "ERR_WEIXIN_SERVER" | "ERR_INVALID_CODE" | "ERR_FREQUENCY_EXCEED";
+declare type WeixinCode2SessionStatus = 
+    IODataStructure.Response.FullStatus<IODataStructure.Response.WeixinCode2SessionError>
 
+
+declare type WeixinSignupReturn = 
+    IODataStructure.Response.WeixinSignupReturnAccept | 
+    {status: IODataStructure.Response.WeixinCode2SessionError}
 /**
  * 功能： 微信的注册和登录（其实是一回事，都是拿着jscode换uuid和client_session_key）
  * 
@@ -107,9 +114,9 @@ export type WeixinCode2SessionStatus = "ACCEPT" | "ERR_WEIXIN_SERVER" | "ERR_INV
  * 返回该用户的uuid
  */
 export async function signupWithWeixin(jscode: string)
-    :Promise<{status: WeixinCode2SessionStatus, client_session_id?: string, uuid?: string}>{
+    :Promise<WeixinSignupReturn>{
     const rst = await weixinCode2Session(jscode)
-    if(rst.status === "ACCEPT" && rst.session_key && rst.openid){
+    if(is<WeixinCode2SessionAcceptReturn>(rst)){
         const item = await AuthorizationModel.findOne({ wxOpenID: rst.openid })
         let uuid = ""
         if(item){
@@ -134,13 +141,16 @@ export async function signupWithWeixin(jscode: string)
             client_session_id: encrypt(rst.openid + rst.session_key)
         }
     }else{
-        return {"status": rst.status}
+        return {status: rst.status}
     }
 }
 
+type WeixinCode2SessionAcceptReturn =
+     {status: "ACCEPT", session_key: string, openid: string}
+type WeixinCode2SessionErrorReturn =  { status: IODataStructure.Response.WeixinCode2SessionError}
 // 直接返回了openid和session_key，不应该export
 async function weixinCode2Session(js_code: string) : 
-        Promise<{status: WeixinCode2SessionStatus, session_key?: string, openid?: string}>{
+        Promise<WeixinCode2SessionAcceptReturn | WeixinCode2SessionErrorReturn>{
     const body = request('GET', sessionTokenUrl(js_code)).getBody('utf-8')
     if(typeof body === 'string'){
         const rtn_json = JSON.parse(body)
@@ -167,9 +177,8 @@ async function weixinCode2Session(js_code: string) :
     return { status: "ERR_WEIXIN_SERVER" }
 }
 
-export type WeixinLoginStatus = "ACCEPT" | "INVALID_CLIENT_SESSION_KEY" | "INVALID_OPENID"
 export async function loginWithWeixin(uuid: string, client_session_id: string)
-    : Promise<WeixinLoginStatus>{
+    : Promise<IODataStructure.Response.WeixinLoginStatus>{
     const modelDS = await AuthorizationModel.findOne({uuid: uuid})
     if(modelDS){
         const session_key = modelDS.wxSessionKey
@@ -177,10 +186,10 @@ export async function loginWithWeixin(uuid: string, client_session_id: string)
         if( session_key && openid && encrypt(openid + session_key) === client_session_id ){
             return "ACCEPT"
         }else{
-            return "INVALID_CLIENT_SESSION_KEY" 
+            return "ERR_INVALID_CLIENT_SESSION_ID" 
         }
     }else{
-        return "INVALID_OPENID"
+        return "ERR_INVALID_UUID"
     }
 }
 

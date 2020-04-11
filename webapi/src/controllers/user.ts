@@ -6,6 +6,8 @@ import { getLogger } from 'log4js'
 import * as Config from '../helper/config'
 import { deviceManager } from '../helper/instances'
 import * as StaticCore from 'express-serve-static-core'
+import { is } from 'typescript-is'
+import { IODataStructure } from '../lib/IODataStructure'
 
 const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL)
 
@@ -21,32 +23,31 @@ declare type Handler = express.RequestHandler<StaticCore.ParamsDictionary, any, 
 
 //========================== Weixin Authorization Start =================================
 const weixinSignupHandler: Handler = async (req, res) => {
-    const clientCode = req.query.code
-
-    if (typeof clientCode === 'string') {
-        const rst = await auth.signupWithWeixin(clientCode)
-        if (rst.status === "ACCEPT" && rst.uuid && rst.client_session_id) {
+    const query = req.query
+    let rtn: IODataStructure.Response.WeixinSignup
+    if (is<IODataStructure.Request.WeixinSignupQuery>(query)) {
+        const rst = await auth.signupWithWeixin(query.jscode)
+        if (is<IODataStructure.Response.WeixinSignupReturnAccept>(rst)) {
             const user = new User(rst.uuid)
-            updateProfile(req.query, user)
-            res.json({
-                status: 'accept',
+            query.uuid = user.uuid
+            if (is<IODataStructure.User.Profile>(query))
+                updateProfile(query)
+            rtn = {
+                status: "ACCEPT",
                 uuid: user.uuid,
-                userid: user.uuid,
                 client_session_id: rst.client_session_id
-            })
+            }
         } else {
-            res.json({
-                status: 'error',
-                errtype: rst.status,
-                errmsg: "signp failed"
-            })
+            rtn = {
+                status: rst.status
+            }
         }
     } else {
-        res.json({
-            status: 'error',
-            errmsg: 'invalid code'
-        })
+        rtn = {
+            status: "ERR_INVALID_QUERY"
+        }
     }
+    res.json(rtn)
 }
 
 router.get('/signup', weixinSignupHandler)
@@ -56,26 +57,26 @@ router.get('/login', weixinSignupHandler)
 //========================== Weixin Authorization End ===================================
 
 // 需要更详细的错误信息
-async function updateProfile(data: any, user: User) {
-    let profile: Updator<Profile> = { uuid: user.uuid }
+async function updateProfile(data: IODataStructure.User.Profile): Promise<void> {
+    let profile: Updator<Profile> = { uuid: data.uuid }
 
     // 逐个更新信息
-    if (typeof data.name === 'string') {
+    if (data.name)
         profile.name = data.name
-    }
-    if (typeof data.region === 'string') {
+
+    if (data.region)
         profile.region = data.region
-    }
-    if (typeof data.phone === 'string') {
+
+    if (data.phone)
         profile.phone = data.phone
-    }
-    if (typeof data.email === 'string') {
+
+    if (data.email)
         profile.email = data.email
-    }
+
 
     // 根据数据库内有没有现有Profile，决定是更新还是添加
     try {
-        let _profile = await ProfileModel.findOne({ uuid: user.uuid })
+        const _profile = await ProfileModel.findOne({ uuid: data.uuid })
         if (_profile) {
             await _profile.updateOne(profile)
         } else {
@@ -93,91 +94,68 @@ async function updateProfile(data: any, user: User) {
  *  3) 用户Authorization
  */
 router.use('/signup_username_password', async (req, res) => {
-    let username = req.query.username
-    let password = req.query.password
-    if (typeof username === 'string' && typeof password === 'string') {
+    const query = req.body
+    let rtn: IODataStructure.Response.UsernameSignup
+    if (is<IODataStructure.Request.UsernameSignupQuery>(query)) {
         //0. 检查用户是否存在  
-        if (await auth.existUsername(username) === true) {
-            res.json({
-                status: 'failed',
-                msg: 'username already exists'
-            })
-            return
+        if (await auth.existUsername(query.username) === true) {
+            rtn = { status: "ERR_USERNAME_ALREADY_EXIST" }
         } else {
             // 1. 用户入库
             let user = await User.newUser()
             req.user = user
             // 2. Authorization 入库
-            let succ = await auth.createEntryWithUsernameAndPassword(user.uuid, username, password)
+            let succ =
+                await auth.createEntryWithUsernameAndPassword
+                    (user.uuid, query.username, query.password)
             //  如果中途已经有人注册了，或者其他原因导致了注册失败
             if (!succ) {
                 await UserModel.findOneAndDelete({ uuid: user.uuid })
-                res.json({
-                    status: 'failed',
-                    msg: 'failed. username already exists?'
-                })
-                return
+                rtn = { status: "ERR_USERNAME_ALREADY_EXIST" }
             } else {
                 // 3. Profile 入库
-                await updateProfile(req.query, req.user)
-                res.json({
-                    status: 'accept',
+                query.uuid = user.uuid
+                if (is<IODataStructure.User.Profile>(query))
+                    await updateProfile(query)
+                rtn = {
+                    status: "ACCEPT",
                     uuid: user.uuid
-                })
-                return
+                }
             }
         }
     } else {
-        res.json({
-            status: 'failed',
-            msg: 'need username and password',
-        })
-        return
+        rtn = { status: "ERR_INVALID_QUERY" }
     }
-
+    res.json(rtn)
 })
 
 //=======================下面都是需要进行身份验证才可以进行的过程=============================
-/*['/uuid',
-    '/profile',
-    '/history',
-    '/latest_renting_or_reverting_status',
-    '/renting_or_reverting',
-    '/rented',
-    '/try_to_rent',
-    '/try_to_revert']
-*/
+
+export type LoginMethod = "UNKNOWN" | "WEIXIN" | "USERNAME"
 //检查是否已经登录
 //只要通过一种检查方式的检查，那就说明登陆成功了
 router.use(
     async (req, res, next) => {
         let uuid: string | undefined | null = undefined
-        let potential_errors: string[] = []
-        let loginMethod: string = "UNKNOWN"
+        let potentialErrors: IODataStructure.Response.LoginError[] = []
+        let loginMethod: LoginMethod = "UNKNOWN"
 
-        if (!uuid) {
+        const query = req.query
+
+        if (!uuid && is<IODataStructure.Request.UsernameSignupQuery>(query)) {
             //用户名密码
-            let username = req.query.username
-            let password = req.query.password
-            if (typeof username === 'string' && typeof password === 'string') {
-                uuid = await auth.loginWithUsernameAndPassword(username, password)
-                if (!uuid) potential_errors.push('wrong password')
-                else loginMethod = "username and password"
-            }
+            uuid = await auth.loginWithUsernameAndPassword(query.username, query.password)
+            if (!uuid) potentialErrors.push("ERR_WRONG_PASSWORD")
+            else loginMethod = "USERNAME"
         }
 
-        if (!uuid) {
-            //uuid+sessionkey
-            const sessionkey = req.query.client_session_id
-            const t_uuid = req.query.uuid || req.query.userid
-            if (typeof sessionkey === 'string' && typeof t_uuid === 'string') {
-                const rst = await auth.loginWithWeixin(t_uuid, sessionkey);
-                if (rst != "ACCEPT") {
-                    potential_errors.push(rst)
-                } else {
-                    uuid = t_uuid
-                    loginMethod = "weixin openid"
-                }
+        if (!uuid && is<IODataStructure.Request.WeixinLoginQuery>(query)) {
+            const rst = await auth.loginWithWeixin(query.uuid, query.uuid);
+            if (rst != "ACCEPT") {
+                potentialErrors.push(rst)
+            } else {
+                uuid = query.uuid
+                loginMethod = "WEIXIN"
             }
         }
 
@@ -187,35 +165,42 @@ router.use(
             next()
             return
         } else {
-            res.status(403).json({
-                status: 'error',
-                msg: 'cannot login',
-                potential_errors: potential_errors
-            })
+            const errrtn: IODataStructure.Response.LoginFailed = {
+                status: "ERR_LOGIN_FAILED",
+                potentialErrors: potentialErrors
+            }
+            res.status(403).json(errrtn)
         }
         return
     })
 
 router.get('/uuid', async (req, res) => {
-    res.json({
-        status: 'accept',
+    const rtn: IODataStructure.Response.UUID = {
+        status: "ACCEPT",
         uuid: req.user.uuid
-    })
+    }
+    res.json(rtn)
 })
 
 router.get('/profile', async (req, res) => {
     let profile = await req.user.profile
-    res.json({
-        status: 'accepted',
+    const rtn: IODataStructure.Response.Profile = {
+        status: "ACCEPT",
         profile: profile
-    })
+    }
 })
 
-router.use('/profile', async (req, res) => {
-    await updateProfile(req.query, req.user)
-    res.json({
-        status: 'accept',
-    })
+router.post('/profile', async (req, res) => {
+    const query = req.query
+    query.uuid = req.user.uuid
+    let rtn: IODataStructure.Response.PostProfile
+    if (is<IODataStructure.User.Profile>(query)) {
+        await updateProfile(query)
+        rtn = { status: "ACCEPT", }
+    } else {
+        rtn = { status: "ERR_INVALID_QUERY" }
+    }
+    res.json(rtn)
 })
 
 router.get('/latest_renting_or_reverting_status', async (req, res) => {
