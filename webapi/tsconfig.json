@@ -2,7 +2,10 @@
     "compilerOptions": {
         "strictNullChecks": true, 
         "noImplicitAny": true,
-        "target": "ES6"
+        "target": "ES6",
+        "plugins": [
+            { "transform": "typescript-is/lib/transform-inline/transformer" }
+        ]
     },
     "files": ["./src/**/*.ts"]
 }

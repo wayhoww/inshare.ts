@@ -7,12 +7,14 @@
     "lib": "lib"
   },
   "scripts": {
-    "dev": "./node_modules/.bin/nodemon --watch 'src/**/*.ts' --ignore 'src/**/*.spec.ts' --exec ./node_modules/.bin/ts-node src/app.ts"
+    "dev": "./node_modules/.bin/nodemon --watch 'src/**/*.ts' --ignore 'src/**/*.spec.ts' --exec ./node_modules/.bin/ts-node --compiler ttypescript src/app.ts"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "nodemon": "^2.0.3"
+    "nodemon": "^2.0.3",
+    "ts-auto-guard": "^1.0.0-alpha.1",
+    "ttypescript": "^1.5.10"
   },
   "dependencies": {
     "@types/express": "^4.17.4",
@@ -20,13 +22,17 @@
     "@types/node": "^13.11.1",
     "@types/uuid": "^7.0.2",
     "express": "^4.17.1",
+    "global": "^4.4.0",
     "https": "^1.0.0",
     "log4js": "^6.1.2",
     "mongoose": "^5.9.7",
     "mqtt": "^3.0.0",
+    "reflect-metadata": "^0.1.13",
     "sync-request": "^6.1.0",
     "ts-node": "^8.8.2",
+    "tsc": "^1.20150623.0",
     "typescript": "^3.8.3",
+    "typescript-is": "^0.15.0",
     "uuid": "^7.0.3"
   }
 }
