@@ -11,4 +11,7 @@ export interface Profile extends Document{
 export const ProfileModel = model<Profile>('Profile', new Schema({
     uuid: {type: String, required: true, unique: true}, 
     name: {type: String, required: false},
+    region: {type: String, required: false},
+    phone: {type: String, required: false},
+    email: {type: String, required: false}
 }))

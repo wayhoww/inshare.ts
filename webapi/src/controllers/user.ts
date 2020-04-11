@@ -20,32 +20,57 @@ declare module 'express-serve-static-core' {
 declare type Handler = express.RequestHandler<StaticCore.ParamsDictionary, any, any, StaticCore.Query>
 
 //========================== Weixin Authorization Start =================================
+const weixinSignupHandler: Handler = async (req, res) => {
+    const clientCode = req.query.code
 
-const weixinSignupHandler: Handler = (req, res) => {
-//GET /user/signup?code=021IBAFv0IbGRg1ViKGv0pzyFv0IBAFW&password=12456&region=%E6%B5%99%E6%B1%9F%2C%20%E6%9D%AD%E5%B7%9E&phone=12222222222&email=123%40abc.co
-    logger.debug(req.query)
-    res.json({a: 1})
-    const clientCode = req.params.code
-    const password = req.params.code
-    const region = req.params.region
-    const phone = req.params.phone
-    const email = req.params.email
-
-    
+    if (typeof clientCode === 'string') {
+        const rst = await auth.signupWithWeixin(clientCode)
+        if (rst.status === "ACCEPT" && rst.uuid && rst.client_session_id) {
+            const user = new User(rst.uuid)
+            updateProfile(req.query, user)
+            res.json({
+                status: 'accept',
+                uuid: user.uuid,
+                userid: user.uuid,
+                client_session_id: rst.client_session_id
+            })
+        } else {
+            res.json({
+                status: 'error',
+                errtype: rst.status,
+                errmsg: "signp failed"
+            })
+        }
+    } else {
+        res.json({
+            status: 'error',
+            errmsg: 'invalid code'
+        })
+    }
 }
 
 router.get('/signup', weixinSignupHandler)
 router.get('/weixin_signup', weixinSignupHandler)
+router.get('/login', weixinSignupHandler)
 
 //========================== Weixin Authorization End ===================================
 
+// 需要更详细的错误信息
 async function updateProfile(data: any, user: User) {
     let profile: Updator<Profile> = { uuid: user.uuid }
 
     // 逐个更新信息
-    let name = data.name
-    if (typeof name === 'string') {
-        profile.name = name
+    if (typeof data.name === 'string') {
+        profile.name = data.name
+    }
+    if (typeof data.region === 'string') {
+        profile.region = data.region
+    }
+    if (typeof data.phone === 'string') {
+        profile.phone = data.phone
+    }
+    if (typeof data.email === 'string') {
+        profile.email = data.email
     }
 
     // 根据数据库内有没有现有Profile，决定是更新还是添加
@@ -67,9 +92,9 @@ async function updateProfile(data: any, user: User) {
  *  2) 用户Profile
  *  3) 用户Authorization
  */
-router.post('/signup_username_password', async (req, res) => {
-    let username = req.body.username
-    let password = req.body.password
+router.use('/signup_username_password', async (req, res) => {
+    let username = req.query.username
+    let password = req.query.password
     if (typeof username === 'string' && typeof password === 'string') {
         //0. 检查用户是否存在  
         if (await auth.existUsername(username) === true) {
@@ -94,7 +119,7 @@ router.post('/signup_username_password', async (req, res) => {
                 return
             } else {
                 // 3. Profile 入库
-                await updateProfile(req.body, req.user)
+                await updateProfile(req.query, req.user)
                 res.json({
                     status: 'accept',
                     uuid: user.uuid
@@ -113,33 +138,61 @@ router.post('/signup_username_password', async (req, res) => {
 })
 
 //=======================下面都是需要进行身份验证才可以进行的过程=============================
-
-//检查是否已经登录
-//只要通过一种检查方式的检查，那就说明登陆成功了
-router.use(['/uuid',
+/*['/uuid',
     '/profile',
     '/history',
     '/latest_renting_or_reverting_status',
     '/renting_or_reverting',
     '/rented',
     '/try_to_rent',
-    '/try_to_revert'],
+    '/try_to_revert']
+*/
+//检查是否已经登录
+//只要通过一种检查方式的检查，那就说明登陆成功了
+router.use(
     async (req, res, next) => {
-        let username = req.body.username
-        let password = req.body.password
-        if (typeof username === 'string' && typeof password === 'string') {
-            let uuid = await auth.loginWithUsernameAndPassword(username, password)
-            if (uuid) {
-                req.user = new User(uuid)
-                logger.info(`${uuid} passed authorization check`)
-                next()
-                return
+        let uuid: string | undefined | null = undefined
+        let potential_errors: string[] = []
+        let loginMethod: string = "UNKNOWN"
+
+        if (!uuid) {
+            //用户名密码
+            let username = req.query.username
+            let password = req.query.password
+            if (typeof username === 'string' && typeof password === 'string') {
+                uuid = await auth.loginWithUsernameAndPassword(username, password)
+                if (!uuid) potential_errors.push('wrong password')
+                else loginMethod = "username and password"
             }
         }
-        res.status(403).json({
-            status: 'error',
-            msg: 'cannot login'
-        })
+
+        if (!uuid) {
+            //uuid+sessionkey
+            const sessionkey = req.query.client_session_id
+            const t_uuid = req.query.uuid || req.query.userid
+            if (typeof sessionkey === 'string' && typeof t_uuid === 'string') {
+                const rst = await auth.loginWithWeixin(t_uuid, sessionkey);
+                if (rst != "ACCEPT") {
+                    potential_errors.push(rst)
+                } else {
+                    uuid = t_uuid
+                    loginMethod = "weixin openid"
+                }
+            }
+        }
+
+        if (uuid) {
+            req.user = new User(uuid)
+            logger.info(`${uuid} passed authorization check (${loginMethod})`)
+            next()
+            return
+        } else {
+            res.status(403).json({
+                status: 'error',
+                msg: 'cannot login',
+                potential_errors: potential_errors
+            })
+        }
         return
     })
 
@@ -158,8 +211,8 @@ router.get('/profile', async (req, res) => {
     })
 })
 
-router.post('/profile', async (req, res) => {
-    await updateProfile(req.body, req.user)
+router.use('/profile', async (req, res) => {
+    await updateProfile(req.query, req.user)
     res.json({
         status: 'accept',
     })
@@ -180,12 +233,15 @@ router.get('/renting_or_reverting', async (req, res) => {
     })
 })
 
-router.get('/rented', async (req, res) => {
+const rentedHandler: Handler = async (req, res) => {
     res.json({
         status: 'accept',
         rented: Array.from(await (await req.user.rented).values())
     })
-})
+}
+
+router.get('/rented', rentedHandler)
+router.get('/status', rentedHandler)
 
 router.get('/history', async (req, res) => {
     if (typeof req.query.skip === 'string' && typeof req.query.limit === 'string') {
@@ -197,7 +253,7 @@ router.get('/history', async (req, res) => {
             status: 'accept',
             history: Array.from((await req.user.getHistory(skip, limit)).values())
         })
-    }else{
+    } else {
         res.json({
             status: 'error',
             error: 'invalid parameters'
@@ -205,9 +261,10 @@ router.get('/history', async (req, res) => {
     }
 })
 
-router.post('/try_to_rent', async (req, res) => {
+router.use('/try_to_rent', async (req, res) => {
     let deviceID = req.query.device_id
     let typeID = req.query.type_id
+    logger.debug(req.query)
     if (typeof deviceID === 'string' && typeof typeID === 'string') {
         let type = parseInt(typeID)
         if (typeof deviceID === 'string' && typeof typeID === 'string' && type !== NaN) {
@@ -248,7 +305,7 @@ router.post('/try_to_rent', async (req, res) => {
 
 
 
-router.post('/try_to_revert', async (req, res) => {
+router.use('/try_to_revert', async (req, res) => {
     let deviceID = req.query.device_id
     let itemUUID = req.query.rent_item_uuid
     if (typeof deviceID === 'string' && typeof itemUUID === 'string') {

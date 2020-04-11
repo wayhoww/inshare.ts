@@ -3,7 +3,7 @@ import {createHmac} from 'crypto'
 import { getLogger, Logger } from 'log4js';
 import * as Config from '../helper/config'
 import request from 'sync-request'
-import { Updator } from './User';
+import { Updator, User } from './User';
 
 const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL)
 
@@ -96,35 +96,68 @@ function sessionTokenUrl(js_code: string){
         + `js_code=${js_code}&grant_type=authorization_code`
 }
 
-export type WeixinSignupError = "ACCEPT" | "ERR_WEIXIN_SERVER" | "ERR_INVALID_CODE" | "ERR_FREQUENCY_EXCEED";
-export async function signupWithWeixin(uuid: string, js_code: string) : 
-        Promise<{status: WeixinSignupError, client_session_key?: string}>{
-    const body = request('GET', sessionTokenUrl(js_code)).body
+export type WeixinCode2SessionStatus = "ACCEPT" | "ERR_WEIXIN_SERVER" | "ERR_INVALID_CODE" | "ERR_FREQUENCY_EXCEED";
+
+/**
+ * 功能： 微信的注册和登录（其实是一回事，都是拿着jscode换uuid和client_session_key）
+ * 
+ * 根据jscode，获取client_session_key和openid
+ * 根据openid查找有没有该注册用户
+ * 如果没有该注册用户，就在注册该用户
+ * 返回该用户的uuid
+ */
+export async function signupWithWeixin(jscode: string)
+    :Promise<{status: WeixinCode2SessionStatus, client_session_id?: string, uuid?: string}>{
+    const rst = await weixinCode2Session(jscode)
+    if(rst.status === "ACCEPT" && rst.session_key && rst.openid){
+        const item = await AuthorizationModel.findOne({ wxOpenID: rst.openid })
+        let uuid = ""
+        if(item){
+           // 如果已经有了相同的openid，
+            await AuthorizationModel.findOneAndUpdate(
+                {wxOpenID: rst.openid}, {wxSessionKey: rst.session_key});
+            uuid = item.uuid
+        }else{
+            // 如果没有现有的openid的话，那么注册一个新的账号
+            const user = await User.newUser()
+            uuid = user.uuid
+            const modelDS: Updator<AuthorizationDS> = {
+                uuid: uuid,
+                wxOpenID: rst.openid,
+                wxSessionKey: rst.session_key
+            }
+            await new AuthorizationModel(modelDS).save()
+        }
+        return {
+            status: rst.status,
+            uuid: uuid,
+            client_session_id: encrypt(rst.openid + rst.session_key)
+        }
+    }else{
+        return {"status": rst.status}
+    }
+}
+
+// 直接返回了openid和session_key，不应该export
+async function weixinCode2Session(js_code: string) : 
+        Promise<{status: WeixinCode2SessionStatus, session_key?: string, openid?: string}>{
+    const body = request('GET', sessionTokenUrl(js_code)).getBody('utf-8')
     if(typeof body === 'string'){
         const rtn_json = JSON.parse(body)
-        if(rtn_json.errcode && rtn_json.openid && rtn_json.session_key){
-            logger.debug('看一下errcode是什么类型的：' + typeof rtn_json.errcode)
+        if(rtn_json.openid && rtn_json.session_key){
             switch(rtn_json.errcode){
             case -1: return {status: "ERR_WEIXIN_SERVER"}; break;
             case 40029: return { status: "ERR_INVALID_CODE" }; break;
             case 45011: return { status: "ERR_INVALID_CODE" }; break;
-            case 0: {
+            case undefined: {
                 const openid = rtn_json.openid
                 const session_key = rtn_json.session_key
-                const item =  await AuthorizationModel.findOne({wxOpenID: openid})
-                // 如果已经有了相同的openid，则更新session_key
-                if(item){
-                    await AuthorizationModel.findOneAndUpdate(
-                        {wxOpenID: openid}, {wxSessionKey: session_key});
-                }else{
-                    const modelDS: Updator<AuthorizationDS> = {
-                        uuid: uuid,
-                        wxOpenID: openid,
-                        wxSessionKey: session_key
+                if(openid && session_key)
+                    return {
+                        status: "ACCEPT", 
+                        openid: openid,
+                        session_key: session_key
                     }
-                    await new AuthorizationModel(modelDS).save()
-                }
-                return {status: "ACCEPT", client_session_key: encrypt(session_key)}
             }
             break;
             default: return { status: "ERR_WEIXIN_SERVER" }
@@ -134,16 +167,17 @@ export async function signupWithWeixin(uuid: string, js_code: string) :
     return { status: "ERR_WEIXIN_SERVER" }
 }
 
-export type WeixinLoginError = "ACCEPT" | "INVALID_CLIENT_SESSION_KEY" | "INVALID_OPENID"
-export async function loginWithWeixin(openid: string, client_session_key: string)
-    : Promise<WeixinLoginError>{
-    const modelDS = await AuthorizationModel.findOne({wxOpenID: openid})
+export type WeixinLoginStatus = "ACCEPT" | "INVALID_CLIENT_SESSION_KEY" | "INVALID_OPENID"
+export async function loginWithWeixin(uuid: string, client_session_id: string)
+    : Promise<WeixinLoginStatus>{
+    const modelDS = await AuthorizationModel.findOne({uuid: uuid})
     if(modelDS){
         const session_key = modelDS.wxSessionKey
-        if( encrypt(session_key) === client_session_key ){
+        const openid = modelDS.wxOpenID
+        if( session_key && openid && encrypt(openid + session_key) === client_session_id ){
             return "ACCEPT"
         }else{
-            return "INVALID_CLIENT_SESSION_KEY"
+            return "INVALID_CLIENT_SESSION_KEY" 
         }
     }else{
         return "INVALID_OPENID"
