@@ -5,6 +5,7 @@ import { Profile, ProfileModel } from '../lib/Profile'
 import { getLogger } from 'log4js'
 import * as Config from '../helper/config'
 import { deviceManager } from '../helper/instances'
+import * as StaticCore from 'express-serve-static-core'
 
 const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL)
 
@@ -15,6 +16,28 @@ declare module 'express-serve-static-core' {
         user: User
     }
 }
+
+declare type Handler = express.RequestHandler<StaticCore.ParamsDictionary, any, any, StaticCore.Query>
+
+//========================== Weixin Authorization Start =================================
+
+const weixinSignupHandler: Handler = (req, res) => {
+//GET /user/signup?code=021IBAFv0IbGRg1ViKGv0pzyFv0IBAFW&password=12456&region=%E6%B5%99%E6%B1%9F%2C%20%E6%9D%AD%E5%B7%9E&phone=12222222222&email=123%40abc.co
+    logger.debug(req.query)
+    res.json({a: 1})
+    const clientCode = req.params.code
+    const password = req.params.code
+    const region = req.params.region
+    const phone = req.params.phone
+    const email = req.params.email
+
+    
+}
+
+router.get('/signup', weixinSignupHandler)
+router.get('/weixin_signup', weixinSignupHandler)
+
+//========================== Weixin Authorization End ===================================
 
 async function updateProfile(data: any, user: User) {
     let profile: Updator<Profile> = { uuid: user.uuid }

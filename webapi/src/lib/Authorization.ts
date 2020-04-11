@@ -2,6 +2,8 @@ import { model, Schema, Document } from 'mongoose'
 import {createHmac} from 'crypto'
 import { getLogger, Logger } from 'log4js';
 import * as Config from '../helper/config'
+import request from 'sync-request'
+import { Updator } from './User';
 
 const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL)
 
@@ -46,6 +48,8 @@ const AuthorizationModel = model<AuthorizationDS>('Authorization', new Schema({
  * 于是，就用函数吧
  */
 
+//================================用户名密码登录   开始=========================================
+
 export async function existUsername(username: string): Promise<boolean>{
     return (await AuthorizationModel.find({username: username})).length > 0
 }
@@ -81,3 +85,71 @@ export async function loginWithUsernameAndPassword(username: string, password: s
         return null
     }
 }
+
+//================================用户名密码登录   结束=========================================
+
+//================================微信登录   开始=========================================
+
+function sessionTokenUrl(js_code: string){
+    return `https://api.weixin.qq.com/sns/jscode2session?`
+        + `appid=${Config.WEIXIN_APPID}&secret=${Config.WEIXIN_SECRET}&`
+        + `js_code=${js_code}&grant_type=authorization_code`
+}
+
+export type WeixinSignupError = "ACCEPT" | "ERR_WEIXIN_SERVER" | "ERR_INVALID_CODE" | "ERR_FREQUENCY_EXCEED";
+export async function signupWithWeixin(uuid: string, js_code: string) : 
+        Promise<{status: WeixinSignupError, client_session_key?: string}>{
+    const body = request('GET', sessionTokenUrl(js_code)).body
+    if(typeof body === 'string'){
+        const rtn_json = JSON.parse(body)
+        if(rtn_json.errcode && rtn_json.openid && rtn_json.session_key){
+            logger.debug('看一下errcode是什么类型的：' + typeof rtn_json.errcode)
+            switch(rtn_json.errcode){
+            case -1: return {status: "ERR_WEIXIN_SERVER"}; break;
+            case 40029: return { status: "ERR_INVALID_CODE" }; break;
+            case 45011: return { status: "ERR_INVALID_CODE" }; break;
+            case 0: {
+                const openid = rtn_json.openid
+                const session_key = rtn_json.session_key
+                const item =  await AuthorizationModel.findOne({wxOpenID: openid})
+                // 如果已经有了相同的openid，则更新session_key
+                if(item){
+                    await AuthorizationModel.findOneAndUpdate(
+                        {wxOpenID: openid}, {wxSessionKey: session_key});
+                }else{
+                    const modelDS: Updator<AuthorizationDS> = {
+                        uuid: uuid,
+                        wxOpenID: openid,
+                        wxSessionKey: session_key
+                    }
+                    await new AuthorizationModel(modelDS).save()
+                }
+                return {status: "ACCEPT", client_session_key: encrypt(session_key)}
+            }
+            break;
+            default: return { status: "ERR_WEIXIN_SERVER" }
+            }
+        }
+    }
+    return { status: "ERR_WEIXIN_SERVER" }
+}
+
+export type WeixinLoginError = "ACCEPT" | "INVALID_CLIENT_SESSION_KEY" | "INVALID_OPENID"
+export async function loginWithWeixin(openid: string, client_session_key: string)
+    : Promise<WeixinLoginError>{
+    const modelDS = await AuthorizationModel.findOne({wxOpenID: openid})
+    if(modelDS){
+        const session_key = modelDS.wxSessionKey
+        if( encrypt(session_key) === client_session_key ){
+            return "ACCEPT"
+        }else{
+            return "INVALID_CLIENT_SESSION_KEY"
+        }
+    }else{
+        return "INVALID_OPENID"
+    }
+}
+
+
+
+//================================微信登录   结束=========================================

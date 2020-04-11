@@ -3,6 +3,8 @@ import * as bodyParser from 'body-parser'
 import * as mongoose from 'mongoose'
 import { configure, getLogger } from 'log4js';
 import * as Config from './helper/config'
+import * as https from 'https'
+
  
 configure({
     appenders: { 
@@ -45,4 +47,13 @@ app.use('/user', userRouter)
 import { router as deviceRouter } from './controllers/device'
 app.use('/device', deviceRouter)
 
-app.listen(Config.WEBAPI_PORT, () => { logger.info('Listening on :' + Config.WEBAPI_PORT)})
+
+if(Config.WEBAPI_PROTOCOL === 'http'){
+    app.listen(Config.WEBAPI_PORT, () => { logger.info(`Listening on :${Config.WEBAPI_PORT}`)})
+}else if(Config.WEBAPI_PROTOCOL === 'https'){
+    https.createServer(Config.HTTPS_OPTIONS, app).listen(3000, ()=>{
+        logger.info(`Listening on :${Config.WEBAPI_PORT}, and https is being used.`)
+    })
+}else{
+    logger.fatal(`Unknown protocol: ${Config.WEBAPI_PROTOCOL}`)
+}

@@ -2,6 +2,7 @@
 config.ts
 cheese.log
 setup-wsl2.sh
+setup-wsl2-https.sh
 
 # Logs
 logs
