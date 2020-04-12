@@ -1,6 +1,5 @@
 <template>
   <div>
-    {{JSON.stringify(devices)}}
     <devices-view v-model="devices"
       @property-updated="propertyUpdated" />
   </div>
