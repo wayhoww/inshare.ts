@@ -27,7 +27,7 @@ const weixinSignupHandler: Handler =
     async (req, res: StaticCore.Response<IODataStructure.Response.WeixinSignup>) => {
         const query = req.query
         let rtn: IODataStructure.Response.WeixinSignup
-        if (is<IODataStructure.Request.WeixinSignupQuery>(query)) {
+        if (is<IODataStructure.Request.WeixinSignup>(query)) {
             const rst = await auth.signupWithWeixin(query.jscode)
             if (is<IODataStructure.Response.WeixinSignupReturnAccept>(rst)) {
                 const user = new User(rst.uuid)
@@ -52,9 +52,8 @@ const weixinSignupHandler: Handler =
         res.json(rtn)
     }
 
-router.get('/signup', weixinSignupHandler)
-router.get('/weixin_signup', weixinSignupHandler)
-router.get('/login', weixinSignupHandler)
+router.post('/signup/weixin', weixinSignupHandler)
+router.get('/login/weixin', weixinSignupHandler)
 
 //========================== Weixin Authorization End ===================================
 
@@ -95,11 +94,11 @@ async function updateProfile(data: IODataStructure.User.Profile): Promise<void> 
  *  2) 用户Profile
  *  3) 用户Authorization
  */
-router.use('/signup_username_password',
+router.post('/signup/username',
     async (req, res: StaticCore.Response<IODataStructure.Response.UsernameSignup>) => {
         const query = req.body
         let rtn: IODataStructure.Response.UsernameSignup
-        if (is<IODataStructure.Request.UsernameSignupQuery>(query)) {
+        if (is<IODataStructure.Request.UsernameSignup>(query)) {
             //0. 检查用户是否存在  
             if (await auth.existUsername(query.username) === true) {
                 rtn = { status: "ERR_USERNAME_ALREADY_EXIST" }
@@ -117,7 +116,7 @@ router.use('/signup_username_password',
                     rtn = { status: "ERR_USERNAME_ALREADY_EXIST" }
                 } else {
                     // 3. Profile 入库
-                    const nquery: IODataStructure.Request.UsernameSignupQuery & {uuid?: string} = query;
+                    const nquery: IODataStructure.Request.UsernameSignup & {uuid?: string} = query;
                     nquery.uuid = user.uuid
                     if (is<IODataStructure.User.Profile>(nquery))
                         await updateProfile(nquery)
@@ -146,14 +145,14 @@ router.use(
 
         const query = req.query
 
-        if (!uuid && is<IODataStructure.Request.UsernameSignupQuery>(query)) {
+        if (!uuid && is<IODataStructure.Request.UsernameAuthorization>(query)) {
             //用户名密码
             uuid = await auth.loginWithUsernameAndPassword(query.username, query.password)
             if (!uuid) potentialErrors.push("ERR_WRONG_PASSWORD")
             else loginMethod = "USERNAME"
         }
 
-        if (!uuid && is<IODataStructure.Request.WeixinLoginQuery>(query)) {
+        if (!uuid && is<IODataStructure.Request.WeixinAuthorization>(query)) {
             const rst = await auth.loginWithWeixin(query.uuid, query.uuid);
             if (rst != "ACCEPT") {
                 potentialErrors.push(rst)
@@ -257,7 +256,6 @@ const rentingHandler: Handler =
     }
 
 router.get('/renting', rentingHandler)
-router.get('/status', rentingHandler)
 
 router.get('/history', async (req,
     res: StaticCore.Response<IODataStructure.Response.AllRentedItems>) => {
@@ -294,7 +292,7 @@ router.get('/history', async (req,
     })
 })
 
-router.use('/try_to_rent', 
+router.get('/try_to_rent', 
         async (req, res: StaticCore.Response<IODataStructure.Response.TryToRent>) => {
     const query = req.query
     if (is<IODataStructure.Request.TryToRent>(query)) {
@@ -320,7 +318,7 @@ router.use('/try_to_rent',
 
 
 
-router.use('/try_to_revert', 
+router.get('/try_to_revert', 
         async (req, res: StaticCore.Response<IODataStructure.Response.TryToRevert>) => {
     const query = req.query
     if (is<IODataStructure.Request.TryToRevert>(query)) {

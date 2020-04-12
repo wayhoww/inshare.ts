@@ -4,7 +4,6 @@ import * as mongoose from 'mongoose'
 import { configure, getLogger } from 'log4js';
 import * as Config from './helper/config'
 import * as https from 'https'
-import { IODataStructure } from './lib/IODataStructure'
  
 configure({
     appenders: { 
