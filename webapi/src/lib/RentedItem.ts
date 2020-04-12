@@ -1,7 +1,11 @@
 
 import { model, Schema, Document } from 'mongoose'
 
-export interface RentItem extends Document{
+export enum RentedItemStatus{
+    RENTED, UNRENTED, REVERTED
+}
+
+export interface RentedItem extends Document{
     uuid: string,
     userUUID: string,
     fromID: string,
@@ -9,10 +13,10 @@ export interface RentItem extends Document{
     typeID: number,
     rentedTime: Date,
     revertedTime?: Date,
-    reverted: boolean
+    status: RentedItemStatus
 }
 
-export const RentItemModel = model<RentItem>('RentItem', new Schema({
+export const RentItemModel = model<RentedItem>('RentedItem', new Schema({
     uuid: { type: String, required: true, unique: true },
     userUUID: {type: String, required: true},
     fromID: { type: String, required: true },
@@ -20,6 +24,6 @@ export const RentItemModel = model<RentItem>('RentItem', new Schema({
     typeID: { type: Number, required: true },
     rentedTime: { type: Date, required: true },
     revertedTime: { type: Date, required: false },
-    reverted: { type: Boolean, required: true }
+    status: { type: RentedItemStatus, required: true }
 }))
 

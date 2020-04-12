@@ -98,10 +98,6 @@ function sessionTokenUrl(js_code: string){
         + `js_code=${js_code}&grant_type=authorization_code`
 }
 
-declare type WeixinCode2SessionStatus = 
-    IODataStructure.Response.FullStatus<IODataStructure.Response.WeixinCode2SessionError>
-
-
 declare type WeixinSignupReturn = 
     IODataStructure.Response.WeixinSignupReturnAccept | 
     {status: IODataStructure.Response.WeixinCode2SessionError}

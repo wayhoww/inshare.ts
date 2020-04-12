@@ -38,6 +38,8 @@ app.use(bodyParser.urlencoded({ extended: true }))
 
 app.use((req, res, next) => {
     logger.info(req.method, req.url)
+    logger.info(req.body)
+    logger.info(req.query)
     next()
 })
 

@@ -22,33 +22,34 @@ declare module 'express-serve-static-core' {
 declare type Handler = express.RequestHandler<StaticCore.ParamsDictionary, any, any, StaticCore.Query>
 
 //========================== Weixin Authorization Start =================================
-const weixinSignupHandler: Handler = async (req, res) => {
-    const query = req.query
-    let rtn: IODataStructure.Response.WeixinSignup
-    if (is<IODataStructure.Request.WeixinSignupQuery>(query)) {
-        const rst = await auth.signupWithWeixin(query.jscode)
-        if (is<IODataStructure.Response.WeixinSignupReturnAccept>(rst)) {
-            const user = new User(rst.uuid)
-            query.uuid = user.uuid
-            if (is<IODataStructure.User.Profile>(query))
-                updateProfile(query)
-            rtn = {
-                status: "ACCEPT",
-                uuid: user.uuid,
-                client_session_id: rst.client_session_id
+const weixinSignupHandler: Handler =
+    async (req, res: StaticCore.Response<IODataStructure.Response.WeixinSignup>) => {
+        const query = req.query
+        let rtn: IODataStructure.Response.WeixinSignup
+        if (is<IODataStructure.Request.WeixinSignupQuery>(query)) {
+            const rst = await auth.signupWithWeixin(query.jscode)
+            if (is<IODataStructure.Response.WeixinSignupReturnAccept>(rst)) {
+                const user = new User(rst.uuid)
+                query.uuid = user.uuid
+                if (is<IODataStructure.User.Profile>(query))
+                    updateProfile(query)
+                rtn = {
+                    status: "ACCEPT",
+                    uuid: user.uuid,
+                    client_session_id: rst.client_session_id
+                }
+            } else {
+                rtn = {
+                    status: rst.status
+                }
             }
         } else {
             rtn = {
-                status: rst.status
+                status: "ERR_INVALID_QUERY"
             }
         }
-    } else {
-        rtn = {
-            status: "ERR_INVALID_QUERY"
-        }
+        res.json(rtn)
     }
-    res.json(rtn)
-}
 
 router.get('/signup', weixinSignupHandler)
 router.get('/weixin_signup', weixinSignupHandler)
@@ -93,41 +94,43 @@ async function updateProfile(data: IODataStructure.User.Profile): Promise<void> 
  *  2) 用户Profile
  *  3) 用户Authorization
  */
-router.use('/signup_username_password', async (req, res) => {
-    const query = req.body
-    let rtn: IODataStructure.Response.UsernameSignup
-    if (is<IODataStructure.Request.UsernameSignupQuery>(query)) {
-        //0. 检查用户是否存在  
-        if (await auth.existUsername(query.username) === true) {
-            rtn = { status: "ERR_USERNAME_ALREADY_EXIST" }
-        } else {
-            // 1. 用户入库
-            let user = await User.newUser()
-            req.user = user
-            // 2. Authorization 入库
-            let succ =
-                await auth.createEntryWithUsernameAndPassword
-                    (user.uuid, query.username, query.password)
-            //  如果中途已经有人注册了，或者其他原因导致了注册失败
-            if (!succ) {
-                await UserModel.findOneAndDelete({ uuid: user.uuid })
+router.use('/signup_username_password',
+    async (req, res: StaticCore.Response<IODataStructure.Response.UsernameSignup>) => {
+        const query = req.body
+        let rtn: IODataStructure.Response.UsernameSignup
+        if (is<IODataStructure.Request.UsernameSignupQuery>(query)) {
+            //0. 检查用户是否存在  
+            if (await auth.existUsername(query.username) === true) {
                 rtn = { status: "ERR_USERNAME_ALREADY_EXIST" }
             } else {
-                // 3. Profile 入库
-                query.uuid = user.uuid
-                if (is<IODataStructure.User.Profile>(query))
-                    await updateProfile(query)
-                rtn = {
-                    status: "ACCEPT",
-                    uuid: user.uuid
+                // 1. 用户入库
+                let user = await User.newUser()
+                req.user = user
+                // 2. Authorization 入库
+                let succ =
+                    await auth.createEntryWithUsernameAndPassword
+                        (user.uuid, query.username, query.password)
+                //  如果中途已经有人注册了，或者其他原因导致了注册失败
+                if (!succ) {
+                    await UserModel.findOneAndDelete({ uuid: user.uuid })
+                    rtn = { status: "ERR_USERNAME_ALREADY_EXIST" }
+                } else {
+                    // 3. Profile 入库
+                    const nquery: object = query;
+                    nquery['uuid'] = user.uuid
+                    if (is<IODataStructure.User.Profile>(nquery))
+                        await updateProfile(nquery)
+                    rtn = {
+                        status: "ACCEPT",
+                        uuid: user.uuid
+                    }
                 }
             }
+        } else {
+            rtn = { status: "ERR_INVALID_QUERY" }
         }
-    } else {
-        rtn = { status: "ERR_INVALID_QUERY" }
-    }
-    res.json(rtn)
-})
+        res.json(rtn)
+    })
 
 //=======================下面都是需要进行身份验证才可以进行的过程=============================
 
@@ -135,7 +138,7 @@ export type LoginMethod = "UNKNOWN" | "WEIXIN" | "USERNAME"
 //检查是否已经登录
 //只要通过一种检查方式的检查，那就说明登陆成功了
 router.use(
-    async (req, res, next) => {
+    async (req, res: StaticCore.Response<IODataStructure.Response.LoginFailed>, next) => {
         let uuid: string | undefined | null = undefined
         let potentialErrors: IODataStructure.Response.LoginError[] = []
         let loginMethod: LoginMethod = "UNKNOWN"
@@ -174,7 +177,8 @@ router.use(
         return
     })
 
-router.get('/uuid', async (req, res) => {
+router.get('/uuid', async (req,
+    res: StaticCore.Response<IODataStructure.Response.UUID>) => {
     const rtn: IODataStructure.Response.UUID = {
         status: "ACCEPT",
         uuid: req.user.uuid
@@ -182,15 +186,18 @@ router.get('/uuid', async (req, res) => {
     res.json(rtn)
 })
 
-router.get('/profile', async (req, res) => {
+router.get('/profile', async (req,
+    res: StaticCore.Response<IODataStructure.Response.Profile>) => {
     let profile = await req.user.profile
     const rtn: IODataStructure.Response.Profile = {
         status: "ACCEPT",
         profile: profile
     }
+    res.json(rtn)
 })
 
-router.post('/profile', async (req, res) => {
+router.post('/profile', async (req,
+    res: StaticCore.Response<IODataStructure.Response.PostProfile>) => {
     const query = req.query
     query.uuid = req.user.uuid
     let rtn: IODataStructure.Response.PostProfile
@@ -203,131 +210,130 @@ router.post('/profile', async (req, res) => {
     res.json(rtn)
 })
 
-router.get('/latest_renting_or_reverting_status', async (req, res) => {
-    res.json({
-        status: 'accept',
-        latest_renting_or_reverting_status: await req.user.latestRentingOrRevertingResult
-    })
-})
-
-
-router.get('/renting_or_reverting', async (req, res) => {
-    res.json({
-        status: 'accept',
-        renting_or_reverting: await req.user.rentingOrReverting
-    })
-})
-
-const rentedHandler: Handler = async (req, res) => {
-    res.json({
-        status: 'accept',
-        rented: Array.from(await (await req.user.rented).values())
-    })
-}
-
-router.get('/rented', rentedHandler)
-router.get('/status', rentedHandler)
-
-router.get('/history', async (req, res) => {
-    if (typeof req.query.skip === 'string' && typeof req.query.limit === 'string') {
-        let skip = parseInt(req.query.skip)
-        let limit = parseInt(req.query.limit)
-        if (skip === NaN) skip = 0
-        if (limit === NaN) limit = 1e10
-        res.json({
-            status: 'accept',
-            history: Array.from((await req.user.getHistory(skip, limit)).values())
-        })
-    } else {
-        res.json({
-            status: 'error',
-            error: 'invalid parameters'
-        })
+router.get('/latest_renting_or_reverting_status', async (req,
+    res: StaticCore.Response<IODataStructure.Response.LatestRentingOrRevertingStatus>) => {
+    const rst = await req.user.latestRentingOrRevertingResult
+    let stat: IODataStructure.Response.RentingOrRevertingStatus
+    switch (rst) {
+        case RentingOrRevertingStatus.UNSTARTED: stat = "UNSTARTED"; break;
+        case RentingOrRevertingStatus.FAILED: stat = "FAILED"; break;
+        case RentingOrRevertingStatus.WAITING: stat = "WAITING"; break;
+        case RentingOrRevertingStatus.SUCCEEDED: stat = "SUCCEEDED"; break;
     }
+    res.json({
+        status: "ACCEPT",
+        latestRentingOrRevertingStatus: stat
+    })
 })
 
-router.use('/try_to_rent', async (req, res) => {
-    let deviceID = req.query.device_id
-    let typeID = req.query.type_id
-    logger.debug(req.query)
-    if (typeof deviceID === 'string' && typeof typeID === 'string') {
-        let type = parseInt(typeID)
-        if (typeof deviceID === 'string' && typeof typeID === 'string' && type !== NaN) {
-            let device = deviceManager.getInstance(deviceID)
-            if (!device) {
-                res.json({
-                    status: 'error',
-                    msg: 'no such device'
-                })
-                return
-            }
-            let rst = await req.user.tryToRent(device, type)
-            if (rst === TryToRentOrRevertResult.ACCEPTED) {
-                res.json({
-                    status: 'accept'
-                })
-            } else {
-                res.json({
-                    status: 'error',
-                    msg: 'see `reason`',
-                    reason: rst
-                })
-            }
-        } else {
-            res.json({
-                status: 'error',
-                msg: 'invalid device id or type id'
+
+router.get('/renting_or_reverting',
+    async (req, res: StaticCore.Response<IODataStructure.Response.RentingOrReverting>) => {
+        res.json({
+            status: "ACCEPT",
+            rentingOrReverting: await req.user.rentingOrReverting
+        })
+    })
+
+const rentingHandler: Handler =
+    async (req, res: StaticCore.Response<IODataStructure.Response.RentingItems>) => {
+        const items: IODataStructure.Device.RentingItem[] = []
+        for (let item of (await req.user.rented).values()) {
+            items.push({
+                uuid: item.uuid,
+                rentedTime: item.rentedTime,
+                typeID: item.typeID,
+                typeName: "TODO",
+                fromID: item.fromID,
+                status: "RENTING"
             })
         }
-    } else {
+
         res.json({
-            status: 'error',
-            msg: 'invalid parameters'
+            status: "ACCEPT",
+            items: items
         })
     }
 
+router.get('/renting', rentingHandler)
+router.get('/status', rentingHandler)
+
+router.get('/history', async (req,
+    res: StaticCore.Response<IODataStructure.Response.AllRentedItems>) => {
+    let skip: number = NaN
+    let limit: number = NaN
+    if (typeof req.query.skip === 'string') skip = parseInt(req.query.skip)
+    if (typeof req.query.limit === 'string') limit = parseInt(req.query.limit)
+    if (skip === NaN) skip = 0
+    if (limit === NaN) limit = 1e10
+
+    let data = (await req.user.getHistory(skip, limit)).values()
+    let items: IODataStructure.Device.AllRentedItem[]
+    for (let item of data) {
+        items.push({
+            uuid: item.uuid,
+            rentedTime: item.rentedTime,
+            typeID: item.typeID,
+            typeName: "TODO",
+            fromID: item.fromID,
+            status: "REVERTED",
+            revertToID: item.revertToID,
+            revertedTime: item.revertedTime
+        })
+    }
+    res.json({
+        status: "ACCEPT",
+        items: items
+    })
 })
 
-
-
-router.use('/try_to_revert', async (req, res) => {
-    let deviceID = req.query.device_id
-    let itemUUID = req.query.rent_item_uuid
-    if (typeof deviceID === 'string' && typeof itemUUID === 'string') {
-        let device = deviceManager.getInstance(deviceID)
+router.use('/try_to_rent', 
+        async (req, res: StaticCore.Response<IODataStructure.Response.TryToRent>) => {
+    const query = req.query
+    if (is<IODataStructure.Request.TryToRent>(query)) {
+        let type = parseInt(query.typeID)
+        let device = deviceManager.getInstance(query.deviceID)
         if (!device) {
-            res.json({
-                status: 'error',
-                msg: 'no such device'
-            })
+            res.json({status: "ERR_NO_DEVICE"})
             return
         }
-        let item = (await req.user.rented).get(itemUUID)
-
-        let rst: TryToRentOrRevertResult = await req.user.tryToRevert(device, itemUUID)
-        switch (rst) {
+        let rst = await req.user.tryToRent(device, type)
+        switch(rst){
             case TryToRentOrRevertResult.ACCEPTED:
-                res.json({
-                    status: 'accept'
-                });
-                break;
+                res.json({status: "ACCEPT"}); break;
             case TryToRentOrRevertResult.DOING:
-                res.json({
-                    status: 'error',
-                    msg: 'busy on other renting or reverting process'
-                })
-            case TryToRentOrRevertResult.IMPOSSIBLE:
-                res.json({
-                    status: 'error',
-                    msg: 'impossible to revert on this device'
-                })
+                res.json({status: "ERR_BUSY"}); break;
+            case TryToRentOrRevertResult.NO_PERMISSION:
+                res.json({status: "ERR_NO_PERMISSION"})
         }
-
-    } else {
-        res.json({
-            status: 'error',
-            msg: 'invalid device id or type id'
-        })
+    }else{
+        res.json({status: "ERR_INVALID_QUERY"})
     }
+})
 
+
+
+router.use('/try_to_revert', 
+        async (req, res: StaticCore.Response<IODataStructure.Response.TryToRevert>) => {
+    const query = req.query
+    if (is<IODataStructure.Request.TryToRevert>(query)) {
+        let device = deviceManager.getInstance(query.deviceID)
+        if (!device) {
+            res.json({status: "ERR_NO_DEVICE"})
+            return
+        }
+        let item = (await req.user.rented).get(query.itemUUID)
+
+        let rst: TryToRentOrRevertResult = await req.user.tryToRevert(device, query.itemUUID)
+        switch(rst){
+            case TryToRentOrRevertResult.ACCEPTED:
+                res.json({status: "ACCEPT"}); break;
+            case TryToRentOrRevertResult.DOING:
+                res.json({status: "ERR_BUSY"}); break;
+            case TryToRentOrRevertResult.NO_PERMISSION:
+                res.json({status: "ERR_NO_PERMISSION"})
+        }
+    } else {
+        res.json({status: "ERR_INVALID_QUERY"})
+    }
 })

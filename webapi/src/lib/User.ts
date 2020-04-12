@@ -1,5 +1,5 @@
 import { model, Schema, Document } from 'mongoose'
-import { RentItem, RentItemModel } from './RentItem'
+import { RentedItem, RentItemModel, RentedItemStatus } from './RentedItem'
 import { Profile, ProfileModel } from './Profile'
 import { Device } from './Device'
 import { v1 as UUID} from 'uuid'
@@ -70,10 +70,10 @@ export class User{
     }
 
     // 还没归还的物件
-    get rented(): Promise<Map<string, RentItem> >{
+    get rented(): Promise<Map<string, RentedItem> >{
         return (async()=>{
-            let items = await RentItemModel.find({userUUID: this.uuid, reverted: false})
-            let map = new Map<string, RentItem>()
+            let items = await RentItemModel.find({userUUID: this.uuid, status: RentedItemStatus.RENTED})
+            let map = new Map<string, RentedItem>()
             for(let item of items){
                 map.set(item.uuid, item)
             }
@@ -85,16 +85,16 @@ export class User{
         return RentItemModel.remove({uuid: itemid})
     }
 
-    addRented(item: RentItem){
+    addRented(item: RentedItem){
         item.userUUID = this.uuid
         return item.save()
     }
 
     // 包括归还的和尚未归还的
-    get history(): Promise<Map<string, RentItem >>{
+    get history(): Promise<Map<string, RentedItem >>{
         return (async()=>{
             let items = await RentItemModel.find({userUUID: this.uuid})
-            let map = new Map<string, RentItem>()
+            let map = new Map<string, RentedItem>()
             for(let item of items){
                 map.set(item.uuid, item)
             }
@@ -103,12 +103,12 @@ export class User{
     }
 
     // 所有历史！包括还没归还的
-    getHistory(skip: number = 0, limit?: number): Promise<Map<string, RentItem >>{
+    getHistory(skip: number = 0, limit?: number): Promise<Map<string, RentedItem >>{
         return (async()=>{
             let items = limit === undefined ? 
                 await RentItemModel.find({userUUID: this.uuid}).skip(skip) : 
                 await RentItemModel.find({userUUID: this.uuid}).skip(skip).limit(limit)
-            let map = new Map<string, RentItem>()
+            let map = new Map<string, RentedItem>()
             for(let item of items){
                 map.set(item.uuid, item)
             }
@@ -120,18 +120,18 @@ export class User{
         return RentItemModel.remove({uuid: itemid})
     }
 
-    addHistory(item: RentItem){
+    addHistory(item: RentedItem){
         item.userUUID = this.uuid
         item.revertedTime = new Date()
-        item.reverted = true
+        item.status = RentedItemStatus.REVERTED
         return item.save()
     }
 
     moveToHistory(uuid: string, device: Device) {
         return RentItemModel.findOneAndUpdate({uuid: uuid}, {
             revertToID: device.id, 
-            reverted: true, 
-            revertedTime: new Date
+            status: RentedItemStatus.REVERTED, 
+            revertedTime: new Date()
         })
     }
 
@@ -155,19 +155,19 @@ export class User{
     //                         否则返回true
     async tryToRent(device: Device, typeid: number){
         if((await this.rentingOrReverting) === true) return TryToRentOrRevertResult.DOING
-        if((await this.permitToRent()) === false) return TryToRentOrRevertResult.IMPOSSIBLE
+        if((await this.permitToRent()) === false) return TryToRentOrRevertResult.NO_PERMISSION
         this.setRentingOrReverting(true)
         this.setLatestRentingOrRevertingResult(RentingOrRevertingStatus.WAITING)
         logger.debug('User info is checked')
         device.rent(typeid)
             .then(()=>{
                 logger.debug('renting succeeded')
-                const doc: Updator<RentItem> = {
+                const doc: Updator<RentedItem> = {
                     uuid: UUID(),
                     typeID: typeid,
                     fromID: device.id,
                     rentedTime: new Date(),
-                    reverted: false,
+                    status: RentedItemStatus.RENTED,
                     userUUID: this.uuid
                 }
                 this.addRented(new RentItemModel(doc))
@@ -175,6 +175,15 @@ export class User{
             })
             .catch((err)=>{
                 logger.error(err)
+                const doc: Updator<RentedItem> = {
+                    uuid: UUID(),
+                    typeID: typeid,
+                    fromID: device.id,
+                    rentedTime: new Date(),
+                    status: RentedItemStatus.UNRENTED,
+                    userUUID: this.uuid
+                }
+                this.addRented(new RentItemModel(doc))
                 this.setLatestRentingOrRevertingResult(RentingOrRevertingStatus.FAILED)
             })
             .finally(()=>{this.setRentingOrReverting(false)})
@@ -184,12 +193,12 @@ export class User{
     async tryToRevert(device: Device, uuid: string){
         if(await this.rentingOrReverting === true) return TryToRentOrRevertResult.DOING
         let rented = await this.rented
-        if(rented.size === 0) return TryToRentOrRevertResult.IMPOSSIBLE
+        if(rented.size === 0) return TryToRentOrRevertResult.NO_PERMISSION
         let item_ = rented.get(uuid)
         if(item_ === undefined){
-            return TryToRentOrRevertResult.IMPOSSIBLE
+            return TryToRentOrRevertResult.NO_PERMISSION
         }else{
-            let item: RentItem = item_
+            let item: RentedItem = item_
             this.setRentingOrReverting(true)
             this.setLatestRentingOrRevertingResult(RentingOrRevertingStatus.WAITING)
             device.revert(item.typeID)
@@ -210,5 +219,5 @@ export class User{
 export enum TryToRentOrRevertResult{
     ACCEPTED = "accepted",
     DOING = "renting",
-    IMPOSSIBLE = "will exceed limit" 
+    NO_PERMISSION = "no_permission" 
 }

@@ -38,26 +38,70 @@ export namespace IODataStructure {
             doors: Door[]
             instruments: InstrumentType[]
         }
+
+        export type RentedItemStatus = "RENTEDING" | "REVERTED" | "UNRENTED"
+
+        export interface RentingItem{
+            uuid: string,
+            fromID: string,
+            typeID: number,
+            typeName: string
+            rentedTime: Date,
+            status: "RENTING"
+        }
+
+        export interface RevertedItem{
+            uuid: string,
+            fromID: string,
+            typeID: number,
+            typeName: string
+            rentedTime: Date,
+            status: "UNRENTED" | "REVERTED",
+            revertToID: string,
+            revertedTime: Date
+        }
+
+        export type AllRentedItem = RentingItem | RevertedItem
+
     }
 
     export namespace User {
 
         /** 用户个人信息，不包含用户的密码等信息，事实上是无关紧要的 */
-        export interface Profile{
+        export interface Profile {
             uuid: string,           // 唯一用户ID, 由UUID v1生成
             name?: string,          // 用户名字
             region?: string,        // 用户地区
             phone?: string,         // 用户电话号码
             email?: string          // 用户电子邮件地址（不用于身份验证！）
-        }        
-        
+        }
+
+        /** 借用设备信息 */
+        export interface RentedItem {
+            uuid: string,
+            fromID: string,
+            typeID: number,
+            typeName: number,
+            rentedTime: Date,
+            reverted: false /** 借用失败要入库嘛？ */
+        }
+
+        export type RevertedItem = RentedItem & {
+            reverted: true
+            revertToID: string,
+            revertedTime: Date,
+        }
     }
 
     /** 定义回复请求的时候JSON数据的格式 */
-    export namespace Response{
+    export namespace Response {
         export type UnacceptedStatus = WeixinSignupError
         export type FullStatus<T> = T | "ACCEPT"
         export type InvalidQueryError = "ERR_INVALID_QUERY"
+
+
+        export type DataStructures = DeviceList | WeixinSignup | UsernameSignup
+            | LoginFailed | UUID | Profile | PostProfile | LatestRentingOrRevertingStatus
 
         /** /device/list返回的数据 */
         export interface DeviceList {
@@ -66,8 +110,8 @@ export namespace IODataStructure {
         }
 
         // 微信注册的返回
-        export type WeixinCode2SessionError = 
-             "ERR_WEIXIN_SERVER" | "ERR_INVALID_CODE" | "ERR_FREQUENCY_EXCEED";
+        export type WeixinCode2SessionError =
+            "ERR_WEIXIN_SERVER" | "ERR_INVALID_CODE" | "ERR_FREQUENCY_EXCEED";
         export type WeixinSignupError = WeixinCode2SessionError | InvalidQueryError
         //  /user/login /user/signup
         export interface WeixinSignupReturnAccept {
@@ -75,7 +119,7 @@ export namespace IODataStructure {
             uuid: string,
             client_session_id: string
         }
-        export type WeixinSignup = WeixinSignupReturnAccept 
+        export type WeixinSignup = WeixinSignupReturnAccept
             | { status: WeixinSignupError }
 
 
@@ -85,7 +129,7 @@ export namespace IODataStructure {
             status: "ACCEPT",
             uuid: string,
         }
-        export type UsernameSignup = UsernameSignupReturnAccept 
+        export type UsernameSignup = UsernameSignupReturnAccept
             | { status: UsernameSignupError }
 
 
@@ -99,22 +143,47 @@ export namespace IODataStructure {
             potentialErrors: LoginError[]
         }
 
-        export type UUID = {
+        export interface UUID {
             status: "ACCEPT",
             uuid: string
         }
-        export type Profile = {
+        export interface Profile {
             status: "ACCEPT",
             profile: IODataStructure.User.Profile
-        }        
-        export type PostProfile = {
+        }
+        export interface PostProfile {
             status: "ACCEPT" | InvalidQueryError
         }
+        export type RentingOrRevertingStatus = "UNSTARTED" | "WAITING" | "FAILED" | "SUCCEEDED"
+        export interface LatestRentingOrRevertingStatus {
+            status: "ACCEPT",
+            latestRentingOrRevertingStatus: RentingOrRevertingStatus
+        }
+        export interface RentingOrReverting {
+            status: "ACCEPT",
+            rentingOrReverting: boolean
+        }
+        export interface RentingItems {
+            status: "ACCEPT",
+            items: Device.RentingItem[]
+        }
+        export interface AllRentedItems {
+            status: "ACCEPT",
+            items: Device.AllRentedItem[]
+        }
+
+        export type TryToRentOrRevertError =  "ERR_NO_DEVICE" | "ERR_NO_PERMISSION" | "ERR_BUSY"
+        export interface TryToRent {
+            status: "ACCEPT" | TryToRentOrRevertError | InvalidQueryError
+        }
+        export type TryToRevert = TryToRent
+
+
 
     }
 
     /** 定义接受请求的时候JSON数据的格式 */
-    export namespace Request{
+    export namespace Request {
 
         export interface WeixinSignupQuery {
             jscode: string
@@ -126,9 +195,25 @@ export namespace IODataStructure {
         }
 
         export interface UsernameSignupQuery {
-            [x: string]: string;
             username: string,
             password: string
+        }
+
+        /** HTTP 的 Query 好像也不支持特殊的数字类型 */
+        /** 十进制数字字符串形式 */
+        export interface AllRentedItem {
+            skip?: string,
+            limit?: string
+        }
+
+        export interface TryToRent{
+            deviceID: string,
+            typeID: string /** 十进制数字字符串软件 */
+        }
+
+        export interface TryToRevert{
+            deviceID: string,
+            itemUUID: string
         }
     }
 }
