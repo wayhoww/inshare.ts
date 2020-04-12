@@ -34,35 +34,35 @@ export namespace IODataStructure {
             location: Location,
             workingTime: number,    // IoT设备返回的以秒计算的工作时间，可能是个无效数据
             lastUpdate: Date,       // 上次更新IoT设备信息的时间，可以用来判断IoT设备是不是离线了
-            captchas: Captcha[]
-            doors: Door[]
+            captchas: Captcha[]     // 验证码数组，这个验证码会显示到IoT设备上
+            doors: Door[]           // 设备的门的数据，似乎没什么用
             instruments: InstrumentType[]
         }
 
-        export type RentedItemStatus = "RENTEDING" | "REVERTED" | "UNRENTED"
+        /**
+         * RENTI
+         */
+        export type RentedItemStatus = "RENTING" | "REVERTED" | "UNRENTED"
 
         export interface RentingItem{
-            uuid: string,
-            fromID: string,
-            typeID: number,
-            typeName: string
-            rentedTime: Date,
+            uuid: string,       
+            fromID: string,     // 从哪个设备借的
+            typeID: number,     //
+            typeName: string    //
+            rentedTime: Date,   //
             status: "RENTING"
         }
 
-        export interface RevertedItem{
+        export interface AllRentedItem{
             uuid: string,
             fromID: string,
+            revertToID?: string,
             typeID: number,
-            typeName: string
             rentedTime: Date,
-            status: "UNRENTED" | "REVERTED",
-            revertToID: string,
-            revertedTime: Date
+            revertedTime?: Date,
+            status: RentedItemStatus
+            typeName: string
         }
-
-        export type AllRentedItem = RentingItem | RevertedItem
-
     }
 
     export namespace User {

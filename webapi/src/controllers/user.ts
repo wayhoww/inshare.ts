@@ -8,6 +8,7 @@ import { deviceManager } from '../helper/instances'
 import * as StaticCore from 'express-serve-static-core'
 import { is } from 'typescript-is'
 import { IODataStructure } from '../lib/IODataStructure'
+import { RentedItemStatus } from '../lib/RentedItem'
 
 const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL)
 
@@ -116,8 +117,8 @@ router.use('/signup_username_password',
                     rtn = { status: "ERR_USERNAME_ALREADY_EXIST" }
                 } else {
                     // 3. Profile 入库
-                    const nquery: object = query;
-                    nquery['uuid'] = user.uuid
+                    const nquery: IODataStructure.Request.UsernameSignupQuery & {uuid?: string} = query;
+                    nquery.uuid = user.uuid
                     if (is<IODataStructure.User.Profile>(nquery))
                         await updateProfile(nquery)
                     rtn = {
@@ -268,17 +269,23 @@ router.get('/history', async (req,
     if (limit === NaN) limit = 1e10
 
     let data = (await req.user.getHistory(skip, limit)).values()
-    let items: IODataStructure.Device.AllRentedItem[]
+    let items: IODataStructure.Device.AllRentedItem[] = []
     for (let item of data) {
+        let status: IODataStructure.Device.RentedItemStatus
+        switch(item.status){
+            case RentedItemStatus.RENTED: status = "RENTING"
+            case RentedItemStatus.REVERTED: status = "UNRENTED"
+            case RentedItemStatus.UNRENTED: status = "REVERTED"
+        }
         items.push({
             uuid: item.uuid,
-            rentedTime: item.rentedTime,
             typeID: item.typeID,
             typeName: "TODO",
             fromID: item.fromID,
-            status: "REVERTED",
-            revertToID: item.revertToID,
-            revertedTime: item.revertedTime
+            rentedTime: item.rentedTime,
+            status: status,
+            revertedTime: item.revertedTime,
+            revertToID: item.revertToID
         })
     }
     res.json({
