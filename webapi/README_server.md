@@ -9,7 +9,7 @@
 1. `${prefix}/server`
 1. `${prefix}/server/${device_id}`
 
-比如，`prefix`为`inshare`，`device_id`为`sim1`的时候，需要订阅：
+比如，`prefix`为`/inshare`，`device_id`为`sim1`的时候，需要订阅：
 1. `/inshare/server`
 1. `/inshare/server/sim1`
 
