@@ -180,6 +180,7 @@ export namespace IODataStructure {
         export interface PostProfile {
             status: "ACCEPT" | InvalidQueryError
         }
+        //                                      还没借过     等待设备响应    失败       成功
         export type RentingOrRevertingStatus = "UNSTARTED" | "WAITING" | "FAILED" | "SUCCEEDED"
         /** GET 
          * /user/latest_renting_or_reverting_status 
