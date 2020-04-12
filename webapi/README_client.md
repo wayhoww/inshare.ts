@@ -12,8 +12,8 @@
 1. 里面有4个namespace: `Device`, `User`, `Response`, `Request`，其中
   1. `Response`：定义了返回的JSON数据的类型，也注释了每个API的用法
   2. `Request`：定义了需要提交的数据的数据结构
-2. 里面对数据类型的定义用的是TypeScript语法，总体来说是个很自然异动的语法，
-  也可以看一下[这个网页🔗](https://www.tslang.cn/docs/handbook/advanced-types.html)
+2. 里面对数据类型的定义用的是TypeScript语法，总体来说是个很自然的语法，
+  也可以看一下[🔗这个网页](https://www.tslang.cn/docs/handbook/advanced-types.html)
   里面介绍的“交叉类型”和“联合类型”。
 
 ### 用户信息
