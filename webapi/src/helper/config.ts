@@ -13,3 +13,4 @@ export const HTTPS_OPTIONS = WEBAPI_PROTOCOL === 'https' ? {
 
 export const WEIXIN_APPID = process.env['WEIXIN_APPID'] || "";
 export const WEIXIN_SECRET = process.env['WEIXIN_SECRET']
+export const NODE_ENV = process.env['NODE_ENV'] || 'development'

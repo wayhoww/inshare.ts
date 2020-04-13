@@ -13,7 +13,7 @@ configure({
     categories: {
         default:    { appenders: ['cheese', 'console'], level: 'info' },
         develop:    { appenders: ['console'], level: 'debug' },
-        production: { appenders: ['cheese', 'console'], level: 'warn' },
+        production: { appenders: ['cheese'], level: 'warn' },
     }
 });
 const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL);
