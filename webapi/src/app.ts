@@ -51,7 +51,7 @@ app.use('/device', deviceRouter)
 app.use((req, res) => {
     res.status(404).json({
         status: "ERR_API_NOT_FOUND",
-        version: '1'
+        version: '2'
     })
 })
 
