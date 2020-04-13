@@ -13,6 +13,7 @@ configure({
     categories: {
         default:    { appenders: ['cheese', 'console'], level: 'info' },
         develop:    { appenders: ['console'], level: 'debug' },
+        develop_docker:    { appenders: ['cheese'], level: 'debug' },
         production: { appenders: ['cheese'], level: 'warn' },
     }
 });

@@ -101,7 +101,7 @@ export class Device {
         this.interactions = new Map()
         this.instruments = new Map()
         this.captchaInterval = this.startImmediately(() => {
-            let buffer = new Buffer(5);
+            let buffer = Buffer.alloc(5);
             buffer.writeUInt8(0xC1);
             const captcha = Math.floor(Math.random() * 1000) % 999
             if(this.captchas.length >= 2){
