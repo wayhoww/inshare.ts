@@ -7,7 +7,7 @@ import * as https from 'https'
  
 configure({
     appenders: { 
-        cheese: { type: 'file', filename: './log/inshare.log' },
+        cheese: { type: 'file', filename: './logs/inshare.log' },
         console: {type: 'console', level: 'debug'}
     },
     categories: {
