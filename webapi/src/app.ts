@@ -49,7 +49,7 @@ import { router as deviceRouter } from './controllers/device'
 app.use('/device', deviceRouter)
 
 app.use((req, res) => {
-	req.status(404).json({status: "ERR_API_NOT_FOUND"})
+	res.status(404).json({status: "ERR_API_NOT_FOUND"})
 })
 
 if(Config.WEBAPI_PROTOCOL === 'http'){
