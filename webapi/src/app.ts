@@ -55,7 +55,7 @@ app.use((req, res) => {
 if(Config.WEBAPI_PROTOCOL === 'http'){
     app.listen(Config.WEBAPI_PORT, () => { logger.info(`Listening on :${Config.WEBAPI_PORT}`)})
 }else if(Config.WEBAPI_PROTOCOL === 'https'){
-    https.createServer(Config.HTTPS_OPTIONS, app).listen(3000, ()=>{
+    https.createServer(Config.HTTPS_OPTIONS, app).listen(Config.WEBAPI_PORT, ()=>{
         logger.info(`Listening on :${Config.WEBAPI_PORT}, and https is being used.`)
     })
 }else{
