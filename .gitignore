@@ -3,6 +3,7 @@ cheese.log
 setup-wsl2.sh
 setup-wsl2-https.sh
 simulator/src/lib/config.ts
+webapi/built
 
 # Logs
 logs

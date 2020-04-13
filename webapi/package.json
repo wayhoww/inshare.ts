@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "./node_modules/.bin/nodemon --watch 'src/**/*.ts' --ignore 'src/**/*.spec.ts' --exec ./node_modules/.bin/ts-node --compiler ttypescript src/app.ts",
-    "serve": "ts-node --compiler ttypescript src/app.ts"
+    "build": "ttsc --project tsconfig.json"
   },
   "author": "",
   "license": "ISC",
