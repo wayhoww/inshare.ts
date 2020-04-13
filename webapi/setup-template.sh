@@ -11,3 +11,5 @@ export CERT_CRT=`echo ~/conf/key.crt`
 
 export WEIXIN_APPID="someid"
 export WEIXIN_SECRET="somekey"
+
+export NODE_ENV="development"
