@@ -5,7 +5,8 @@ COPY . /var/www/
 
 EXPOSE 443
 
-RUN . ./setup-env.sh && npm install --registry=https://registry.npm.taobao.org 
+RUN . ./setup-env.sh 
+RUN npm install --registry=https://registry.npm.taobao.org 
 RUN npm run build
 
 ENTRYPOINT node built/app.js
