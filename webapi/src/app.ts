@@ -4,15 +4,15 @@ import * as mongoose from 'mongoose'
 import { configure, getLogger } from 'log4js';
 import * as Config from './helper/config'
 import * as https from 'https'
- 
+
 configure({
-    appenders: { 
+    appenders: {
         cheese: { type: 'file', filename: './logs/inshare.log' },
-        console: {type: 'console', level: 'debug'}
+        console: { type: 'console', level: 'debug' }
     },
     categories: {
-        default:    { appenders: ['cheese', 'console'], level: 'info' },
-        develop:    { appenders: ['console'], level: 'debug' },
+        default: { appenders: ['cheese', 'console'], level: 'info' },
+        develop: { appenders: ['console'], level: 'debug' },
         production: { appenders: ['cheese'], level: 'warn' },
     }
 });
@@ -20,7 +20,7 @@ const logger = getLogger(Config.WEBAPI_LOGGER_LEVEL);
 
 
 const DB_URL = Config.MONGODB_URL
-mongoose.connect(DB_URL,{
+mongoose.connect(DB_URL, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
     useCreateIndex: true,
@@ -49,15 +49,18 @@ import { router as deviceRouter } from './controllers/device'
 app.use('/device', deviceRouter)
 
 app.use((req, res) => {
-	res.status(404).json({status: "ERR_API_NOT_FOUND"})
+    res.status(404).json({
+        status: "ERR_API_NOT_FOUND",
+        version: '0'
+    })
 })
 
-if(Config.WEBAPI_PROTOCOL === 'http'){
-    app.listen(Config.WEBAPI_PORT, () => { logger.info(`Listening on :${Config.WEBAPI_PORT}`)})
-}else if(Config.WEBAPI_PROTOCOL === 'https'){
-    https.createServer(Config.HTTPS_OPTIONS, app).listen(Config.WEBAPI_PORT, ()=>{
+if (Config.WEBAPI_PROTOCOL === 'http') {
+    app.listen(Config.WEBAPI_PORT, () => { logger.info(`Listening on :${Config.WEBAPI_PORT}`) })
+} else if (Config.WEBAPI_PROTOCOL === 'https') {
+    https.createServer(Config.HTTPS_OPTIONS, app).listen(Config.WEBAPI_PORT, () => {
         logger.info(`Listening on :${Config.WEBAPI_PORT}, and https is being used.`)
     })
-}else{
+} else {
     logger.fatal(`Unknown protocol: ${Config.WEBAPI_PROTOCOL}`)
 }

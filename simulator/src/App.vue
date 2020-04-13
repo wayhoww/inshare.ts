@@ -1,5 +1,6 @@
 <template>
   <div>
+    <h1>Simulators</h1>
     <devices-view v-model="devices"
       @property-updated="propertyUpdated" />
   </div>
